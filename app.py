@@ -13,15 +13,19 @@ def create_soup(x):
 def get_recommendations(title, cosine_sim):
     global result
     title=title.replace(' ','').lower()
+    if title not in indices:
+        return None
     idx = indices[title]
     sim_scores = list(enumerate(cosine_sim[idx]))
     sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
     sim_scores = sim_scores[1:11]
     movie_indices = [i[0] for i in sim_scores]
-    result =  netflix_overall['title'].iloc[movie_indices]
-    result = result.to_frame()
-    result = result.reset_index()
-    del result['index']    
+    result = netflix_overall.iloc[movie_indices][['title', 'type', 'director', 'cast', 'release_year', 'rating', 'duration', 'listed_in', 'description']].copy()
+    result = result.reset_index(drop=True)
+    result.columns = ['Title', 'Type', 'Director', 'Cast', 'Year', 'Rating', 'Duration', 'Genre', 'Description']
+    result['Netflix Link'] = result['Title'].apply(
+        lambda x: f'<a href="https://www.netflix.com/search?q={x.replace(" ", "%20")}" target="_blank">Watch on Netflix</a>'
+    )
     return result
     
 netflix_overall = pd.read_csv('netflix_titles.csv')
@@ -52,9 +56,11 @@ def index():
 @app.route('/about',methods=['POST'])
 def getvalue():
     moviename = request.form['moviename']
-    get_recommendations(moviename,cosine_sim2)
-    df=result
-    return render_template('result.html',  tables=[df.to_html(classes='data')], titles=df.columns.values)
+    recommendations = get_recommendations(moviename,cosine_sim2)
+    if recommendations is None:
+        return render_template('result.html', tables=[], titles=[], error=f"Movie '{moviename}' not found in our database.")
+    df=recommendations
+    return render_template('result.html',  tables=[df.to_html(classes='data', escape=False)], titles=df.columns.values)
 
 if __name__ == '__main__':
     app.run(debug=False)
